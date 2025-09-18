@@ -1,0 +1,12 @@
+fastapi
+uvicorn
+python-multipart
+pydantic
+torch
+torchvision
+torchaudio
+transformers
+easyocr
+opencv-python
+ultralytics
+scikit-learn
