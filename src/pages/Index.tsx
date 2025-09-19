@@ -51,6 +51,23 @@ const Index = () => {
     });
     return;
   }
+  type AnalysisResult = {
+  status: string;
+  message: string;
+};
+
+  const groupedResults = (analysisResults as AnalysisResult[]).reduce(
+    (acc: Record<string, AnalysisResult[]>, r) => {
+      if (r.status === "IMAGE") {
+        acc[r.message] = [];
+      } else {
+        const lastKey = Object.keys(acc).pop();
+        if (lastKey) acc[lastKey].push(r);
+      }
+      return acc;
+    },
+    {}
+  );
 
   setIsAnalyzing(true);
   setAnalysisProgress(0);
@@ -78,10 +95,21 @@ const Index = () => {
     const summaryData = await summaryResponse.json();
       // summaryData.summary is a string, split into lines
       const summaryLines = summaryData.summary.split('\n').filter(line => line.trim() !== "");
-      setAnalysisResults(summaryLines.map(item => ({
-        status: item.startsWith("PASSED") ? "PASSED" : item.startsWith("FAILED") ? "FAILED" : "INFO",
+      setAnalysisResults(summaryLines.map(item => {
+      if (item.includes(".webp") || item.includes(".png") || item.includes(".jpg")) {
+        return {
+          status: "IMAGE",
+          message: item   // keep "1.webp → 1.webp"
+        };
+      }
+      return {
+        status: item.startsWith("PASSED") ? "PASSED" :
+                item.startsWith("FAILED") ? "FAILED" :
+                item.startsWith("WARNING") ? "WARNING" : "INFO",
         message: item
-      })));
+      };
+    }));
+
 
     setAnalysisProgress(100);
     setShowResults(true);
@@ -270,15 +298,40 @@ const Index = () => {
                         </p>
                       </div>
 
-                      {/* Summary */}
-                      <div className="flex justify-center gap-6 mb-8">
-                        <Badge variant="secondary" className="px-4 py-2 text-success font-medium">
-                          ✅ {analysisResults.filter(r => r.status === "PASSED").length} Passed
-                        </Badge>
-                        <Badge variant="secondary" className="px-4 py-2 text-destructive font-medium">
-                          ❌ {analysisResults.filter(r => r.status === "FAILED").length} Failed
-                        </Badge>
-                      </div>
+                  {/* Session Summary */}
+<div className="flex justify-center gap-6 mb-8">
+  <Badge variant="secondary" className="px-4 py-2 text-success font-medium">
+    {analysisResults.filter(file => {
+      // A file passes if it has status "IMAGE" and all checks under it are not FAILED
+      const results = analysisResults.reduce<Record<string, any[]>>((acc, r) => {
+        if (r.status === "IMAGE") acc[r.message] = [];
+        else {
+          const lastKey = Object.keys(acc).pop();
+          if (lastKey) acc[lastKey].push(r);
+        }
+        return acc;
+      }, {});
+      return results[file.message]?.every(r => r.status !== "FAILED");
+    }).length} Passed
+  </Badge>
+
+  <Badge variant="secondary" className="px-4 py-2 text-destructive font-medium">
+    {analysisResults.filter(file => {
+      const results = analysisResults.reduce<Record<string, any[]>>((acc, r) => {
+        if (r.status === "IMAGE") acc[r.message] = [];
+        else {
+          const lastKey = Object.keys(acc).pop();
+          if (lastKey) acc[lastKey].push(r);
+        }
+        return acc;
+      }, {});
+      return results[file.message]?.some(r => r.status === "FAILED");
+    }).length} Failed
+  </Badge>
+</div>
+
+
+
 
                       {/* Results Card */}
                       <Card className="bg-card/50 backdrop-blur-sm">
@@ -289,50 +342,88 @@ const Index = () => {
                           </CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-6">
-                          {analysisResults.map((r, i) => (
-                            <div
-                              key={i}
-                              className={`rounded-lg border p-4 space-y-2 ${
-                                r.status === "PASSED"
-                                  ? "border-success/30 bg-success/5"
-                                  : "border-destructive/30 bg-destructive/5"
-                              }`}
-                            >
-                              {/* Main Row */}
-                              <div className="flex items-center gap-3">
-                                {r.status === "PASSED" ? (
-                                  <CheckCircle className="w-5 h-5 text-success" />
-                                ) : (
-                                  <XCircle className="w-5 h-5 text-destructive" />
-                                )}
-                                <span
-                                  className={`font-semibold ${
-                                    r.status === "PASSED" ? "text-success" : "text-destructive"
-                                  }`}
-                                >
-                                  {r.status}
-                                </span>
-                                <span className="text-muted-foreground">→</span>
-                                <span>{r.message}</span>
-                              </div>
+            
+                          {/* Grouped Results by Image */}
+                          {Object.entries(
+                            analysisResults.reduce<Record<string, { status: string; message: string }[]>>(
+                              (acc, r) => {
+                                if (r.status === "IMAGE") {
+                                  acc[r.message] = [];
+                                } else {
+                                  const lastKey = Object.keys(acc).pop();
+                                  if (lastKey) acc[lastKey].push(r);
+                                }
+                                return acc;
+                              },
+                              {}
+                            )
+                          ).map(([imageName, results], idx) => (
 
-                              {/* Extra details for FAILED */}
-                              {r.status === "FAILED" && r.details && (
-                                <div className="ml-8 text-sm space-y-1 text-muted-foreground">
-                                  <p><strong>Expected:</strong> {r.details.expected}</p>
-                                  <p><strong>Found:</strong> {r.details.found}</p>
-                                  {r.details.similarity && (
-                                    <p><strong>Similarity:</strong> {r.details.similarity}%</p>
-                                  )}
-                                  {r.details.recommendation && (
-                                    <p className="text-foreground">
-                                      💡 <strong>Recommendation:</strong> {r.details.recommendation}
-                                    </p>
-                                  )}
+                            <div key={idx} className="rounded-lg border p-4 space-y-4 bg-muted/10">
+                              <details className="group">
+                                <summary className="flex items-center gap-2 cursor-pointer font-semibold text-primary">
+                                  <FileText className="w-5 h-5 text-primary" />
+                                  {imageName}
+                                  <span
+                                    className={`ml-2 px-2 py-1 rounded text-sm font-semibold ${
+                                      results.some(r => r.status === "FAILED")
+                                        ? "bg-destructive/20 text-destructive"
+                                        : "bg-success/20 text-success"
+                                    }`}
+                                  >
+                                    {results.some(r => r.status === "FAILED") ? "FAILED" : "PASSED"}
+                                  </span>
+
+                                </summary>
+                                <div className="mt-4 space-y-3">
+                                  {results.map((r: any, i: number) => (
+                                    <div
+                                      key={i}
+                                      className={`rounded-lg border p-3 flex items-start gap-2 ${
+                                        r.status === "PASSED"
+                                          ? "border-success/30 bg-success/5"
+                                          : r.status === "FAILED"
+                                          ? "border-destructive/30 bg-destructive/5"
+                                          : r.status === "WARNING"
+                                          ? "border-yellow-500/30 bg-yellow-500/5"
+                                          : "border-muted/30 bg-muted/5"
+                                      }`}
+                                    >
+                                      {r.status === "PASSED" && (
+                                        <CheckCircle className="w-5 h-5 text-success shrink-0" />
+                                      )}
+                                      {r.status === "FAILED" && (
+                                        <XCircle className="w-5 h-5 text-destructive shrink-0" />
+                                      )}
+                                      {r.status === "WARNING" && (
+                                        <AlertCircle className="w-5 h-5 text-yellow-500 shrink-0" />
+                                      )}
+
+                                      <div>
+                                        <span
+                                          className={`font-semibold ${
+                                            r.status === "PASSED"
+                                              ? "text-success"
+                                              : r.status === "FAILED"
+                                              ? "text-destructive"
+                                              : r.status === "WARNING"
+                                              ? "text-yellow-500"
+                                              : "text-muted-foreground"
+                                          }`}
+                                        >
+                                          {r.status}
+                                        </span>
+                                        <span className="mx-2 text-muted-foreground">→</span>
+                                        <span>{r.message}</span>
+                                      </div>
+                                    </div>
+                                  ))}
                                 </div>
-                              )}
+                              </details>
                             </div>
                           ))}
+
+
 
                   
                           {/* Download PDF link */}
@@ -374,7 +465,7 @@ const Index = () => {
           <div className="max-w-4xl mx-auto text-center space-y-12">
             <h2 className="text-3xl md:text-4xl font-bold">How It Works</h2>
             <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-              Upload your before/after screenshots and let our **CPU-friendly open-source LLM** do the heavy lifting. 
+              Upload your before/after screenshots and let our CPU-friendly open-source LLM do the heavy lifting. 
               No GPU required, no data leaves your environment.
             </p>
             
