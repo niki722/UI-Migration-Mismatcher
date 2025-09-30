@@ -56,18 +56,29 @@ const Index = () => {
   message: string;
 };
 
-  const groupedResults = (analysisResults as AnalysisResult[]).reduce(
-    (acc: Record<string, AnalysisResult[]>, r) => {
-      if (r.status === "IMAGE") {
-        acc[r.message] = [];
-      } else {
-        const lastKey = Object.keys(acc).pop();
-        if (lastKey) acc[lastKey].push(r);
-      }
-      return acc;
-    },
-    {}
-  );
+  // Reduce analysisResults into per-image groups
+const groupedResults = analysisResults.reduce<Record<string, any[]>>((acc, r) => {
+  // If this is an actual image (ends with .jpg/.png/.webp)
+  if (r.status === "IMAGE") {
+    acc[r.message] = [];
+  } else if (r.status === "OCR") {
+    // OCR discrepancies: extract the image name from message
+    const match = r.message.match(/^(.*?\.jpg|png|webp) →/);
+    const imageName = match ? match[1] : "Unknown Image";
+    if (!acc[imageName]) acc[imageName] = [];
+    // remove the image name prefix from message
+    const msgText = r.message.replace(`${imageName} →`, "").trim();
+    acc[imageName].push({ ...r, message: msgText, status: "FAILED" });
+  } else {
+    // normal info messages
+    const lastKey = Object.keys(acc).pop();
+    if (!lastKey) acc["Unknown Image"] = [];
+    acc[lastKey].push(r);
+  }
+  return acc;
+}, {});
+
+
 
   setIsAnalyzing(true);
   setAnalysisProgress(0);
@@ -94,21 +105,9 @@ const Index = () => {
 
     const summaryData = await summaryResponse.json();
       // summaryData.summary is a string, split into lines
-      const summaryLines = summaryData.summary.split('\n').filter(line => line.trim() !== "");
-      setAnalysisResults(summaryLines.map(item => {
-      if (item.includes(".webp") || item.includes(".png") || item.includes(".jpg")) {
-        return {
-          status: "IMAGE",
-          message: item   // keep "1.webp → 1.webp"
-        };
-      }
-      return {
-        status: item.startsWith("PASSED") ? "PASSED" :
-                item.startsWith("FAILED") ? "FAILED" :
-                item.startsWith("WARNING") ? "WARNING" : "INFO",
-        message: item
-      };
-    }));
+      // const summaryLines = summaryData.summary.split('\n').filter(line => line.trim() !== "");
+      const summaryLines = summaryData.combined_summary || [];
+      setAnalysisResults(summaryLines);
 
 
     setAnalysisProgress(100);
@@ -287,162 +286,71 @@ const Index = () => {
           <div className="flex justify-center items-center mt-8">
 
               {showResults && (
-                <section className="py-20">
-                  <div className="container mx-auto px-4">
-                    <div className="max-w-4xl mx-auto">
-                      {/* Header */}
-                      <div className="text-center space-y-4 mb-16">
-                        <h2 className="text-3xl md:text-4xl font-bold">Analysis Results</h2>
-                        <p className="text-lg text-muted-foreground">
-                          Feature-by-feature comparison between old and new UI
-                        </p>
+  <section className="py-20">
+    <div className="container mx-auto px-4">
+      <div className="max-w-4xl mx-auto">
+        <div className="text-center space-y-4 mb-16">
+          <h2 className="text-3xl md:text-4xl font-bold">Analysis Results</h2>
+          <p className="text-lg text-muted-foreground">
+            Feature-by-feature comparison between old and new UI
+          </p>
+        </div>
+
+        {/* Group by file_pair */}
+        <div className="space-y-6">
+          {Object.entries(
+            analysisResults.reduce<Record<string, any[]>>((acc, r) => {
+              const key = r.file_pair || "Unknown File Pair";
+              if (!acc[key]) acc[key] = [];
+              acc[key].push(r);
+              return acc;
+            }, {})
+          ).map(([filePair, messages], idx) => {
+            const hasIssues = messages.length > 0;
+            const headerClass = hasIssues ? "border-destructive/50 bg-destructive/10" : "border-success/50 bg-success/10";
+            const icon = hasIssues ? <XCircle className="w-5 h-5 text-destructive" /> : <CheckCircle className="w-5 h-5 text-success" />;
+            const headerStatus = hasIssues ? "FAILED" : "PASS";
+            return (
+              <div key={idx} className={`rounded-lg border p-4 space-y-2 ${headerClass}`}>
+                <details className="group">
+                  <summary className="flex items-center gap-2 cursor-pointer font-semibold text-lg">
+                    {icon}
+                    <span>{filePair}</span>
+                    <span className={`ml-2 font-bold ${hasIssues ? "text-destructive" : "text-success"}`}>{headerStatus}</span>
+                  </summary>
+                  <div className="mt-4 space-y-2">
+                    {messages.map((msg: any, i: number) => (
+                      <div key={i} className="rounded-lg border p-3 flex items-start gap-2 border-destructive/30 bg-destructive/5">
+                        <span className="font-semibold">{msg.type}</span>
+                        <span className="mx-2 text-muted-foreground">→</span>
+                        <span>{msg.message}</span>
                       </div>
-
-                  {/* Session Summary */}
-<div className="flex justify-center gap-6 mb-8">
-  <Badge variant="secondary" className="px-4 py-2 text-success font-medium">
-    {analysisResults.filter(file => {
-      // A file passes if it has status "IMAGE" and all checks under it are not FAILED
-      const results = analysisResults.reduce<Record<string, any[]>>((acc, r) => {
-        if (r.status === "IMAGE") acc[r.message] = [];
-        else {
-          const lastKey = Object.keys(acc).pop();
-          if (lastKey) acc[lastKey].push(r);
-        }
-        return acc;
-      }, {});
-      return results[file.message]?.every(r => r.status !== "FAILED");
-    }).length} Passed
-  </Badge>
-
-  <Badge variant="secondary" className="px-4 py-2 text-destructive font-medium">
-    {analysisResults.filter(file => {
-      const results = analysisResults.reduce<Record<string, any[]>>((acc, r) => {
-        if (r.status === "IMAGE") acc[r.message] = [];
-        else {
-          const lastKey = Object.keys(acc).pop();
-          if (lastKey) acc[lastKey].push(r);
-        }
-        return acc;
-      }, {});
-      return results[file.message]?.some(r => r.status === "FAILED");
-    }).length} Failed
-  </Badge>
-</div>
-
-
-
-
-                      {/* Results Card */}
-                      <Card className="bg-card/50 backdrop-blur-sm">
-                        <CardHeader>
-                          <CardTitle className="flex items-center gap-2">
-                            <FileText className="w-5 h-5" />
-                            Detailed Report
-                          </CardTitle>
-                        </CardHeader>
-                        <CardContent className="space-y-6">
-            
-                          {/* Grouped Results by Image */}
-                          {Object.entries(
-                            analysisResults.reduce<Record<string, { status: string; message: string }[]>>(
-                              (acc, r) => {
-                                if (r.status === "IMAGE") {
-                                  acc[r.message] = [];
-                                } else {
-                                  const lastKey = Object.keys(acc).pop();
-                                  if (lastKey) acc[lastKey].push(r);
-                                }
-                                return acc;
-                              },
-                              {}
-                            )
-                          ).map(([imageName, results], idx) => (
-
-                            <div key={idx} className="rounded-lg border p-4 space-y-4 bg-muted/10">
-                              <details className="group">
-                                <summary className="flex items-center gap-2 cursor-pointer font-semibold text-primary">
-                                  <FileText className="w-5 h-5 text-primary" />
-                                  {imageName}
-                                  <span
-                                    className={`ml-2 px-2 py-1 rounded text-sm font-semibold ${
-                                      results.some(r => r.status === "FAILED")
-                                        ? "bg-destructive/20 text-destructive"
-                                        : "bg-success/20 text-success"
-                                    }`}
-                                  >
-                                    {results.some(r => r.status === "FAILED") ? "FAILED" : "PASSED"}
-                                  </span>
-
-                                </summary>
-                                <div className="mt-4 space-y-3">
-                                  {results.map((r: any, i: number) => (
-                                    <div
-                                      key={i}
-                                      className={`rounded-lg border p-3 flex items-start gap-2 ${
-                                        r.status === "PASSED"
-                                          ? "border-success/30 bg-success/5"
-                                          : r.status === "FAILED"
-                                          ? "border-destructive/30 bg-destructive/5"
-                                          : r.status === "WARNING"
-                                          ? "border-yellow-500/30 bg-yellow-500/5"
-                                          : "border-muted/30 bg-muted/5"
-                                      }`}
-                                    >
-                                      {r.status === "PASSED" && (
-                                        <CheckCircle className="w-5 h-5 text-success shrink-0" />
-                                      )}
-                                      {r.status === "FAILED" && (
-                                        <XCircle className="w-5 h-5 text-destructive shrink-0" />
-                                      )}
-                                      {r.status === "WARNING" && (
-                                        <AlertCircle className="w-5 h-5 text-yellow-500 shrink-0" />
-                                      )}
-
-                                      <div>
-                                        <span
-                                          className={`font-semibold ${
-                                            r.status === "PASSED"
-                                              ? "text-success"
-                                              : r.status === "FAILED"
-                                              ? "text-destructive"
-                                              : r.status === "WARNING"
-                                              ? "text-yellow-500"
-                                              : "text-muted-foreground"
-                                          }`}
-                                        >
-                                          {r.status}
-                                        </span>
-                                        <span className="mx-2 text-muted-foreground">→</span>
-                                        <span>{r.message}</span>
-                                      </div>
-                                    </div>
-                                  ))}
-                                </div>
-                              </details>
-                            </div>
-                          ))}
-
-
-
-                  
-                          {/* Download PDF link */}
-                          <a
-                            href="http://127.0.0.1:5000/download_report_pdf"
-                            className="flex items-center gap-2 text-sm text-accent hover:text-accent-glow cursor-pointer transition-smooth"
-                            download
-                          >
-                            <Download className="w-4 h-4" />
-                            <span className="underline">Download PDF summary</span>
-                          </a>
-
-
-                        </CardContent>
-                      </Card>
-                    </div>
+                    ))}
                   </div>
-                </section>
-              )}
+                </details>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Download PDF link */}
+        <div className="mt-6 flex justify-start">
+          <a
+            href="http://127.0.0.1:5000/download_report_pdf"
+            className="flex items-center gap-2 text-sm text-accent hover:text-accent-glow cursor-pointer transition-smooth"
+            download
+          >
+            <Download className="w-4 h-4" />
+            <span className="underline">Download PDF summary</span>
+          </a>
+        </div>
+      </div>
+    </div>
+  </section>
+)}
+
+
+
 
 
               

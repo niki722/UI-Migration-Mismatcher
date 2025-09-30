@@ -1,160 +1,69 @@
-FeatureMirror Backend
+# FeatureMirror - UI Migration Analyzer
 
-🔍 FeatureMirror is a backend service for automated UI migration validation.
-It analyzes old vs. new screenshots using YOLOv8 (UI element detection), EasyOCR (text recognition), and Flan-T5-small (summarization), then produces structured JSON reports and human-readable summaries.
+FeatureMirror is a FastAPI-based tool to automatically compare screenshots of web or mobile UIs. It leverages **OCR**, **YOLO object detection**, and **SSIM-based visual comparison** to detect text changes, layout shifts, and visual differences between old and new versions of the UI.
 
-🚀 Quick Start
-1. Clone & Install
-git clone <your-repo-url>
-cd featuremirror-backend
-pip install -r requirements.txt
+---
 
-2. Run the API Server
-python -m uvicorn main:app --reload --host 127.0.0.1 --port 5000
+## Features
 
+- **OCR Text Analysis**: Detects text changes between old and new screenshots.
+- **YOLO Object Detection**: Detects UI components and identifies missing or shifted elements.
+- **Pixel-level Comparison**: Uses SSIM to detect visual shifts or changes.
+- **Automated JSON Output**: Stores detailed analysis results for further processing.
+- **PDF Report Generation**: Creates a professional PDF report with file-level and overall summaries.
+- **LLM Summary Generation**: Uses a T5-based model to summarize analysis results in human-readable bullet points.
+- **FastAPI Endpoints**:
+  - `/analyze` – Upload old and new screenshots for analysis.
+  - `/generate_summary` – Generate a textual summary of differences.
+  - `/download_report_pdf` – Download a detailed PDF discrepancy report.
 
-API base URL: http://127.0.0.1:5000
+---
 
-Interactive docs: http://127.0.0.1:5000/docs
+## Installation
 
-📡 API Endpoints
-🔹 1. Analyze Screenshots
+1. Clone this repository:
 
-POST /analyze
-Upload old & new screenshots for automated comparison.
+  ```bash
+  git clone <repo-url>
+  cd <repo-folder>
 
-curl -X POST "http://127.0.0.1:5000/analyze" \
-  -F "old_files=@old_ui1.png" \
-  -F "old_files=@old_ui2.png" \
-  -F "new_files=@new_ui1.png" \
-  -F "new_files=@new_ui2.png"
+2. Install dependencies:
 
+  pip install -r requirements.txt
 
-📌 What happens:
+3. Usage
 
-Screenshots saved under uploads/old/ and uploads/new/
+  --> Run the FastAPI server:
 
-Old ↔ New files auto-paired by filename similarity
+  --> python -m uvicorn main:app --reload --host 127.0.0.1 --port 5000
 
-YOLOv8 detects UI components
 
-EasyOCR extracts text with confidence filtering
+4. Open the API docs in your browser:
 
-JSON results written to uploads/combined_results_<timestamp>.json
+http://127.0.0.1:8000/docs
 
-🔹 2. Generate Summary
 
-GET /generate_summary
-Generate a human-readable summary from the latest analysis.
+5. Use the endpoints:
 
-curl -X GET "http://127.0.0.1:5000/generate_summary"
+  /analyze: Upload old and new UI screenshots (paired by filename stem).
 
+  /generate_summary: Get a textual summary of detected changes.
 
-📌 Response Example:
+  /download_report_pdf: Download the PDF report.
 
-{
-  "latest_json": "uploads/combined_results_20250917_153045.json",
-  "summary": "3.webp → 3.webp\nPASSED → TheCubeFactory\nPASSED → Welcome back\nFAILED → Sign in: Text changed to 'Login' (similarity: 68%)\nFAILED → button: Element missing in new UI\n"
-}
+6. Example Workflow
+    1) Upload old and new screenshots of your UI.
 
-⚙️ How It Works
+    2) Analyze differences via /analyze.
 
-Feature Detection
+    3) View summarized textual report via /generate_summary.
 
-YOLOv8 detects buttons, inputs, and UI regions
+    4)Download detailed PDF report via /download_report_pdf.
 
-EasyOCR extracts text with bounding boxes
+5. Notes
 
-Auto-Pairing
+~ Make sure yolov8n.pt or your trained YOLO model is in the working directory.
 
-Old and new screenshots matched by filename similarity
+~ OCR may fail for very small or low-resolution text.
 
-Analysis
-
-Text similarity measured with difflib.SequenceMatcher
-
-Missing/mismatched UI components flagged
-
-Summarization
-
-CPU-friendly flan-t5-small generates reports
-
-🛠 Tech Stack
-
-FastAPI → API framework
-
-YOLOv8 → UI element detection
-
-EasyOCR → OCR text extraction
-
-OpenCV → Preprocessing
-
-Flan-T5-small (Transformers) → Natural language summaries
-
-difflib → Text similarity
-
-📊 Performance
-
-CPU-only (no GPU required)
-
-~2–4 cores used during analysis
-
-~1–2 GB RAM per batch
-
-5–10 screenshots processed per minute
-
-🔧 Configuration
-
-Optional environment variables:
-
-# Model settings
-LLM_MODEL_NAME=google/flan-t5-small
-
-# Thresholds
-YOLO_CONF_THRESH=0.3
-OCR_CONF_THRESH=0.5
-SIMILARITY_THRESHOLD=0.7
-
-# Storage paths
-UPLOAD_DIR=uploads
-
-🐛 Troubleshooting
-
-❌ 404 Not Found
-Check that you’re posting to /analyze (not /upload).
-
-❌ OCR results inaccurate
-
-Use high-resolution screenshots
-
-Increase contrast or scale images
-
-❌ YOLO missing elements
-
-Adjust YOLO_CONF_THRESH
-
-Ensure training covers your UI dataset
-
-🧪 Development
-# Install dev dependencies
-pip install -r requirements.txt
-pip install pytest pytest-asyncio black isort
-
-# Run tests
-pytest
-
-# Format code
-black .
-isort .
-
-📜 License
-
-MIT License – See LICENSE file for details.
-
-📬 Support
-
-📚 API Docs: http://127.0.0.1:5000/docs
-
-🐛 Report issues via GitHub
-
-📧 Contact: team@featuremirror.dev
+~ PDF report includes colored rows to indicate pass (green), warning (yellow), and fail (red) results.

@@ -1,0 +1,37 @@
+{
+  "discrepancies": [
+    {
+      "file": "Unknown",
+      "issue": "YOLO Issue \u2192 'remote' missing"
+    },
+    {
+      "file": "Unknown",
+      "issue": "YOLO Issue \u2192 'remote' missing"
+    },
+    {
+      "file": "Unknown",
+      "issue": "YOLO Issue \u2192 'remote' missing"
+    },
+    {
+      "file": "Unknown",
+      "issue": "Pixel Issue \u2192 Type your email: FAIL (similarity: 0.14)"
+    },
+    {
+      "file": "Unknown",
+      "issue": "Pixel Issue \u2192 ENTER PASSWORD: WARN (similarity: 0.60)"
+    },
+    {
+      "file": "Unknown",
+      "issue": "Pixel Issue \u2192 Type your password: WARN (similarity: 0.41)"
+    },
+    {
+      "file": "Unknown",
+      "issue": "Pixel Issue \u2192 Type your username: WARN (similarity: 0.40)"
+    },
+    {
+      "file": "Unknown",
+      "issue": "Pixel Issue \u2192 Your designation: WARN (similarity: 0.41)"
+    }
+  ],
+  "llm_summary": "LLM summary could not be generated."
+}
